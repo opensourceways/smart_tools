@@ -6,7 +6,7 @@ COPY . /etc/nginx-purger/
 RUN apk update && apk add tini tzdata python2 py-pip && cd /etc/nginx-purger && pip install -r ./requirements.txt
 
 ENV TZ="Asia/Shanghai"
-ENV CONFIGURATION_FILE="/etc/nginx-purger/config"
+ENV CONFIGURATION_FILE="/etc/nginx-purger/config.product"
 ENV FLASK_APP="app.py"
 ENV FLASK_ENV="production"
 WORKDIR /etc/nginx-purger/

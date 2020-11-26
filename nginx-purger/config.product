@@ -1,0 +1,6 @@
+BASIC_AUTH_USERNAME = "name"
+BASIC_AUTH_PASSWORD = "password"
+KUBERNETES_TOKEN = ""
+KUBE_API_SERVER = "https://kubernetes.default.svc/api/v1"
+INGRESS_NS = "ingress-nginx"
+INGRESS_SERVICE = "ingress-nginx"
