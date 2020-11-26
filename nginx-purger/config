@@ -4,4 +4,3 @@ KUBERNETES_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3N
 KUBE_API_SERVER = "https://119.8.122.167:5443/api/v1"
 INGRESS_NS = "ingress-nginx"
 INGRESS_SERVICE = "ingress-nginx"
-SERVER_PORT = 8080

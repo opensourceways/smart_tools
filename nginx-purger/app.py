@@ -9,54 +9,7 @@ from flask_basicauth import BasicAuth
 import requests
 
 app = Flask(__name__)
-app.logger.setLevel(logging.INFO)
-app.config.from_envvar('CONFIGURATION_FILE')
-
-BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
-if BASIC_AUTH_USERNAME:
-    app.config['BASIC_AUTH_USERNAME'] = BASIC_AUTH_USERNAME
-
-BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
-if BASIC_AUTH_PASSWORD:
-    app.config['BASIC_AUTH_PASSWORD'] = BASIC_AUTH_PASSWORD
-
-KUBERNETES_TOKEN = os.environ.get("KUBERNETES_TOKEN")
-if KUBERNETES_TOKEN:
-    app.config['KUBERNETES_TOKEN'] = KUBERNETES_TOKEN
-# Try to get the token in kubernetes service token file
-if not KUBERNETES_TOKEN:
-    default_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.isfile(default_token_file):
-        with open(default_token_file, "r") as f:
-            app.config['KUBERNETES_TOKEN'] = f.readline()
-
-app.config["AUTH_HEADER"] = {"Authorization": str.format("Bearer {0}", app.config['KUBERNETES_TOKEN'])}
-
 basic_auth = BasicAuth(app)
-
-
-@app.route('/purge', methods=["GET"])
-@basic_auth.required
-def purge():
-    hostname = request.args.get('hostname', '')
-    if not hostname:
-        return {"error": "'hostname' not specified"}, 400
-    addresses = _resolve_ingress_endpoints()
-    host = {
-        "Host": hostname
-    }
-    results = []
-    status_code = 200
-    for e in addresses:
-        endpoint = "https://{0}/purge/*".format(str(e).strip("/"))
-        r = requests.get(endpoint, headers=host, timeout=5, verify=False)
-        if r.status_code == 200:
-            results.append("nginx cache purged for host: {0} on instance {1}".format(hostname, e))
-        else:
-            results.append(
-                "failed to purge nginx cache for host {0} on instance {1}, reason: {2}".format(hostname, e, r.text))
-            status_code = 500
-    return "\n".join(results), status_code
 
 
 def _resolve_ingress_endpoints():
@@ -65,7 +18,7 @@ def _resolve_ingress_endpoints():
                                                         str(app.config["INGRESS_SERVICE"]).strip("/"))
     r = requests.get(endpoint, headers=app.config["AUTH_HEADER"], timeout=5, verify=False)
     if r.status_code != 200:
-        raise "failed to get nginx ingress's endpoint lists {0}".format(r)
+        raise Exception("failed to get nginx ingress's endpoint lists {0}".format(r))
     return [x["ip"] for x in r.json()["endpoint"]["addresses"]]
 
 
@@ -84,7 +37,30 @@ def _wait_endpoint_reachable():
     return False
 
 
-if __name__ == '__main__':
+def setup_app(app):
+    app.logger.setLevel(logging.INFO)
+    app.config.from_envvar('CONFIGURATION_FILE')
+
+    BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
+    if BASIC_AUTH_USERNAME:
+        app.config['BASIC_AUTH_USERNAME'] = BASIC_AUTH_USERNAME
+
+    BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
+    if BASIC_AUTH_PASSWORD:
+        app.config['BASIC_AUTH_PASSWORD'] = BASIC_AUTH_PASSWORD
+
+    KUBERNETES_TOKEN = os.environ.get("KUBERNETES_TOKEN")
+    if KUBERNETES_TOKEN:
+        app.config['KUBERNETES_TOKEN'] = KUBERNETES_TOKEN
+    # Try to get the token in kubernetes service token file
+    if not KUBERNETES_TOKEN:
+        default_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        if os.path.isfile(default_token_file):
+            with open(default_token_file, "r") as f:
+                app.config['KUBERNETES_TOKEN'] = f.readline()
+
+    app.config["AUTH_HEADER"] = {"Authorization": str.format("Bearer {0}", app.config['KUBERNETES_TOKEN'])}
+
     try:
         for req in ["KUBERNETES_TOKEN", "BASIC_AUTH_USERNAME", "BASIC_AUTH_PASSWORD", "INGRESS_NS", "INGRESS_SERVICE"]:
             if not app.config[req]:
@@ -92,7 +68,41 @@ if __name__ == '__main__':
         if not _wait_endpoint_reachable():
             app.logger.error("give up waiting for kubernetes api server ready")
             exit(-1)
-        app.run(host='0.0.0.0', port=app.config["SERVER_PORT"])
     except Exception as e:
         app.logger.error("Application server down with error %s", e)
         exit(-1)
+
+
+setup_app(app)
+
+
+@app.route('/purge', methods=["GET"])
+@basic_auth.required
+def purge():
+    try:
+        hostname = request.args.get('hostname', '')
+        if not hostname:
+            return {"error": "'hostname' not specified"}, 400
+        addresses = _resolve_ingress_endpoints()
+        host = {
+            "Host": hostname
+        }
+        results = []
+        status_code = 200
+        for e in addresses:
+            endpoint = "https://{0}/purge/*".format(str(e).strip("/"))
+            r = requests.get(endpoint, headers=host, timeout=5, verify=False)
+            if r.status_code == 200:
+                results.append("nginx cache purged for host: {0} on instance {1}".format(hostname, e))
+            else:
+                results.append(
+                    "failed to purge nginx cache for host {0} on instance {1}, reason: {2}".format(hostname, e, r.text))
+                status_code = 500
+        return "\n".join(results), status_code
+    except Exception as err:
+        return {"error": "failed to perform purge action, detail: {0}".format(err)}, 500
+
+
+@app.route('/health', methods=["GET"])
+def health():
+    return "ok", 200

@@ -7,5 +7,9 @@ RUN apk update && apk add tini tzdata python2 py-pip && cd /etc/nginx-purger && 
 
 ENV TZ="Asia/Shanghai"
 ENV CONFIGURATION_FILE="/etc/nginx-purger/config"
+ENV FLASK_APP="app.py"
+ENV FLASK_ENV="production"
+WORKDIR /etc/nginx-purger/
+EXPOSE 8080
 ENTRYPOINT ["tini", "--"]
-CMD ["python /etc/nginx-purger/app.py"]
+CMD ["flask", "run", "-h", "0.0.0.0", "-p", "8080"]
