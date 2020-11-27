@@ -12,17 +12,7 @@ app = Flask(__name__)
 basic_auth = BasicAuth(app)
 
 
-def _resolve_ingress_endpoints():
-    endpoint = "{0}/namespaces/{1}/endpints/{2}".format(str(app.config["KUBE_API_SERVER"]).strip("/"),
-                                                        str(app.config["INGRESS_NS"]).strip("/"),
-                                                        str(app.config["INGRESS_SERVICE"]).strip("/"))
-    r = requests.get(endpoint, headers=app.config["AUTH_HEADER"], timeout=5, verify=False)
-    if r.status_code != 200:
-        raise Exception("failed to get nginx ingress's endpoint lists {0}".format(r))
-    return [x["ip"] for x in r.json()["endpoint"]["addresses"]]
-
-
-def _wait_endpoint_reachable():
+def _wait_endpoint_reachable(app):
     for retry in range(3):
         try:
             app.logger.info("wait for kubernetes api endpoint reachable round: %d", retry)
@@ -65,7 +55,7 @@ def setup_app(app):
         for req in ["KUBERNETES_TOKEN", "BASIC_AUTH_USERNAME", "BASIC_AUTH_PASSWORD", "INGRESS_NS", "INGRESS_SERVICE"]:
             if not app.config[req]:
                 app.logger.error("Please ensure %s configured", req)
-        if not _wait_endpoint_reachable():
+        if not _wait_endpoint_reachable(app):
             app.logger.error("give up waiting for kubernetes api server ready")
             exit(-1)
     except Exception as e:
@@ -74,6 +64,21 @@ def setup_app(app):
 
 
 setup_app(app)
+
+
+def _resolve_ingress_endpoints():
+    endpoint = "{0}/namespaces/{1}/endpoints/{2}".format(str(app.config["KUBE_API_SERVER"]).strip("/"),
+                                                         str(app.config["INGRESS_NS"]).strip("/"),
+                                                         str(app.config["INGRESS_SERVICE"]).strip("/"))
+    print(endpoint)
+    print(app.config["AUTH_HEADER"])
+    r = requests.get(endpoint, headers=app.config["AUTH_HEADER"], timeout=5, verify=False)
+    if r.status_code != 200:
+        raise Exception("failed to get nginx ingress's endpoint lists {0}".format(r))
+    result = r.json()
+    if "subsets" not in result or len(result["subsets"]) < 1 or "addresses" not in result["subsets"][0]:
+        raise Exception("'subsets' and 'addresses' are expected to be in endpoint results. {}".format(result))
+    return [x["ip"] for x in result["subsets"][0]["addresses"]]
 
 
 @app.route('/purge', methods=["GET"])
@@ -98,7 +103,7 @@ def purge():
                 results.append(
                     "failed to purge nginx cache for host {0} on instance {1}, reason: {2}".format(hostname, e, r.text))
                 status_code = 500
-        return "\n".join(results), status_code
+        return "\n".join(results)+"\n", status_code
     except Exception as err:
         return {"error": "failed to perform purge action, detail: {0}".format(err)}, 500
 
