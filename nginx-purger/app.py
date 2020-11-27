@@ -52,7 +52,7 @@ def setup_app(app):
     app.config["AUTH_HEADER"] = {"Authorization": str.format("Bearer {0}", app.config['KUBERNETES_TOKEN'])}
 
     try:
-        for req in ["KUBERNETES_TOKEN", "BASIC_AUTH_USERNAME", "BASIC_AUTH_PASSWORD", "INGRESS_NS", "INGRESS_SERVICE"]:
+        for req in ["BASIC_AUTH_USERNAME", "BASIC_AUTH_PASSWORD", "INGRESS_NS", "INGRESS_SERVICE"]:
             if not app.config[req]:
                 app.logger.error("Please ensure %s configured", req)
         if not _wait_endpoint_reachable(app):
