@@ -31,13 +31,13 @@ export let getFooterLinks = (): FooterLink[] => {
     },
     {
       text: '蜀ICP备20009468号-1',
-      icon: 'icp-record',
+      icon: 'file-copy-alt',
       url: 'https://icp.chinaz.com/home/info?host=osinfra.cn',
       target: '_blank',
     },
     {
       text: '粤公网安备 44030702003822号',
-      icon: 'record',
+      icon: 'shield-check',
       url: 'http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44030702003822',
       target: '_blank',
     },
